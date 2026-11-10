@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Posizione GPS</title>
+<style>
+  /* STILE: colori e dimensioni della pagina */
+  body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#f2f5f9;color:#1c2a39}
+  .box{max-width:480px;margin:0 auto}
+  h1{font-size:22px;margin:4px 0 12px}
+  .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+  .riga{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eef1f5}
+  .riga:last-child{border-bottom:none}
+  .riga span{color:#6b7a8a}
+  .riga b{font-size:20px;font-variant-numeric:tabular-nums}
+  button{font-size:16px;padding:12px 16px;border:none;border-radius:10px;background:#0a7cff;color:#fff;width:100%;margin-bottom:8px}
+  button.sec{background:#e3eaf3;color:#1c2a39}
+  #stato{font-size:14px;color:#6b7a8a;margin:6px 0}
+  .err{color:#c0392b!important}
+  a{color:#0a7cff}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>📍 La mia posizione</h1>
+
+  <!-- HTML: gli elementi che vedi nella pagina. Ogni valore ha un id per poterlo aggiornare dal codice -->
+  <div class="card">
+    <div class="riga"><span>Latitudine</span><b id="lat">—</b></div>
+    <div class="riga"><span>Longitudine</span><b id="lon">—</b></div>
+    <div class="riga"><span>Altitudine</span><b id="alt">—</b></div>
+    <div class="riga"><span>Precisione posizione</span><b id="acc">—</b></div>
+    <div class="riga"><span>Precisione altitudine</span><b id="altacc">—</b></div>
+  </div>
+
+  <div id="stato">Premi "Avvia" per rilevare la posizione.</div>
+
+  <button id="btnAvvia">Avvia rilevamento</button>
+  <button class="sec" id="btnCopia">Copia coordinate</button>
+  <p><a id="mappa" href="#" target="_blank" rel="noopener" style="display:none">Apri su Google Maps</a></p>
+</div>
+
+<script>
+/* JAVASCRIPT: la parte che "fa le cose" */
+
+var watchId = null;   // numero che identifica il rilevamento attivo (null = fermo)
+var ultima = null;    // ultima posizione ricevuta
+
+// Scorciatoia per prendere un elemento della pagina dal suo id
+function el(id){ return document.getElementById(id); }
+
+// Scrive un messaggio di stato (rosso se è un errore)
+function stato(testo, errore){
+  el('stato').textContent = testo;
+  el('stato').className = errore ? 'err' : '';
+}
+
+// Chiamata ogni volta che il GPS ci dà una nuova posizione
+function aggiorna(pos){
+  var c = pos.coords;           // c contiene latitude, longitude, altitude, accuracy...
+  ultima = c;
+  el('lat').textContent = c.latitude.toFixed(6) + '°';
+  el('lon').textContent = c.longitude.toFixed(6) + '°';
+  // L'altitudine può essere null: non tutti i telefoni/browser la forniscono
+  el('alt').textContent = (c.altitude === null) ? 'non disponibile' : Math.round(c.altitude) + ' m';
+  el('acc').textContent = '± ' + Math.round(c.accuracy) + ' m';
+  el('altacc').textContent = (c.altitudeAccuracy == null) ? '—' : '± ' + Math.round(c.altitudeAccuracy) + ' m';
+  var m = el('mappa');
+  m.href = 'https://www.google.com/maps?q=' + c.latitude + ',' + c.longitude;
+  m.style.display = '';
+  stato('Aggiornato alle ' + new Date().toLocaleTimeString('it-IT'));
+}
+
+// Chiamata se qualcosa va storto (permesso negato, GPS spento...)
+function errore(e){
+  var msg = {1:'Permesso di posizione negato. Consenti la posizione per questo sito nelle impostazioni del browser.',
+             2:'Posizione non disponibile. Controlla che il GPS sia attivo.',
+             3:'Tempo scaduto. Riprova all\'aperto.'}[e.code] || e.message;
+  stato(msg, true);
+}
+
+// Avvia o ferma il rilevamento continuo
+el('btnAvvia').onclick = function(){
+  if(!navigator.geolocation){ stato('Questo browser non supporta la geolocalizzazione.', true); return; }
+  if(watchId !== null){
+    navigator.geolocation.clearWatch(watchId);   // ferma
+    watchId = null;
+    el('btnAvvia').textContent = 'Avvia rilevamento';
+    stato('Rilevamento fermato.');
+    return;
+  }
+  stato('Ricerca del segnale GPS…');
+  watchId = navigator.geolocation.watchPosition(aggiorna, errore, {
+    enableHighAccuracy: true,  // usa il GPS vero, non solo le celle telefoniche
+    maximumAge: 0,
+    timeout: 20000
+  });
+  el('btnAvvia').textContent = 'Ferma rilevamento';
+};
+
+// Copia le coordinate negli appunti
+el('btnCopia').onclick = function(){
+  if(!ultima){ stato('Prima avvia il rilevamento.', true); return; }
+  var t = ultima.latitude.toFixed(6) + ', ' + ultima.longitude.toFixed(6) +
+          (ultima.altitude !== null ? ' - alt. ' + Math.round(ultima.altitude) + ' m' : '');
+  if(navigator.clipboard){ navigator.clipboard.writeText(t).then(function(){ stato('Copiato: ' + t); },
+    function(){ stato(t); }); }
+  else stato(t);
+};
+</script>
+</body>
+</html>
